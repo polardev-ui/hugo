@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Hugo icon 192px">
+  <defs>
+    <linearGradient id="bg192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#12132A"/>
+      <stop offset="100%" stop-color="#08080F"/>
+    </linearGradient>
+    <linearGradient id="pin192" x1="0%" y1="0%" x2="100%" y2="110%">
+      <stop offset="0%" stop-color="#6BA5FF"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="44" ry="44" fill="url(#bg192)"/>
+  <ellipse cx="96" cy="90" rx="44" ry="40" fill="rgba(79,142,247,0.15)"/>
+  <path d="M96 27 C63 27, 37 53, 37 83 C37 127 82 161 96 170 C110 161, 155 127, 155 83 C155 53, 129 27, 96 27 Z"
+        fill="rgba(79,142,247,0.1)"
+        stroke="url(#pin192)"
+        stroke-width="5"
+        stroke-linejoin="round"/>
+  <path d="M67 63 L67 103 M67 83 L125 83 M125 63 L125 103"
+        fill="none" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

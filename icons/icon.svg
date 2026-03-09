@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hugo navigation app icon">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#12132A"/>
+      <stop offset="100%" stop-color="#08080F"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0%" y1="0%" x2="100%" y2="110%">
+      <stop offset="0%" stop-color="#6BA5FF"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="116" ry="116" fill="url(#bg)"/>
+
+  <!-- Glow behind pin -->
+  <ellipse cx="256" cy="240" rx="120" ry="110" fill="rgba(79,142,247,0.15)" filter="url(#glow)"/>
+
+  <!-- Navigation pin outline stroke (gradient) -->
+  <path d="M256 72 C168 72, 98 142, 98 222 C98 340, 218 428, 256 452 C294 428, 414 340, 414 222 C414 142, 344 72, 256 72 Z"
+        fill="rgba(79,142,247,0.12)"
+        stroke="url(#pin)"
+        stroke-width="14"
+        stroke-linejoin="round"/>
+
+  <!-- H letterform -->
+  <path d="M178 168 L178 276 M178 222 L334 222 M334 168 L334 276"
+        fill="none"
+        stroke="white"
+        stroke-width="32"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+</svg>

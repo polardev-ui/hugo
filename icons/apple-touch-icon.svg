@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Hugo Apple touch icon">
+  <defs>
+    <linearGradient id="bgApple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#12132A"/>
+      <stop offset="100%" stop-color="#08080F"/>
+    </linearGradient>
+    <linearGradient id="pinApple" x1="0%" y1="0%" x2="100%" y2="110%">
+      <stop offset="0%" stop-color="#6BA5FF"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+  <!-- Apple touch icon — uses standard rounded rect background -->
+  <rect width="180" height="180" rx="40" ry="40" fill="url(#bgApple)"/>
+  <ellipse cx="90" cy="85" rx="42" ry="38" fill="rgba(79,142,247,0.15)"/>
+  <path d="M90 26 C59 26, 35 50, 35 78 C35 120 78 153 90 162 C102 153, 145 120, 145 78 C145 50, 121 26, 90 26 Z"
+        fill="rgba(79,142,247,0.1)"
+        stroke="url(#pinApple)"
+        stroke-width="5"
+        stroke-linejoin="round"/>
+  <path d="M63 60 L63 96 M63 78 L117 78 M117 60 L117 96"
+        fill="none" stroke="white" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
