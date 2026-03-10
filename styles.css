@@ -1160,3 +1160,189 @@ body {
 [data-theme="light"] .leaflet-interactive[stroke="#4F8EF7"] {
   stroke: #2563EB;
 }
+
+/* ──────────────────────────────────────────
+   19. NAVIGATION STATS BAR
+────────────────────────────────────────── */
+.nav-stats-bar {
+  position: absolute;
+  left: 16px; right: 16px;
+  bottom: calc(var(--safe-b) + 16px);
+  z-index: 110;
+  background: var(--c-glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--c-border2);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-lg);
+  height: 70px;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(24px);
+  transition: opacity 0.4s var(--ease), transform 0.45s var(--spring);
+}
+.nav-stats-bar.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.nav-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px 6px;
+}
+.nav-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--c-text);
+  line-height: 1;
+  letter-spacing: -0.5px;
+  transition: color 0.3s var(--ease);
+}
+.nav-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--c-text2);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.nav-stat-sep {
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--c-border2);
+  margin: 14px 0;
+}
+
+/* ──────────────────────────────────────────
+   20. TRAFFIC BADGE
+────────────────────────────────────────── */
+.traffic-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--r-full);
+  transition: background 0.5s var(--ease), color 0.5s var(--ease);
+}
+.traffic-badge.traffic-clear {
+  background: rgba(79,142,247,0.15);
+  color: var(--c-accent);
+}
+.traffic-badge.traffic-moderate {
+  background: rgba(245,158,11,0.15);
+  color: #F59E0B;
+}
+.traffic-badge.traffic-heavy {
+  background: rgba(239,68,68,0.15);
+  color: var(--c-danger);
+}
+
+/* ──────────────────────────────────────────
+   21. IS-NAVIGATING STATE
+   Lifts speed display & FABs above stats bar
+────────────────────────────────────────── */
+.is-navigating .speed-display {
+  bottom: calc(70px + var(--safe-b) + 20px);
+}
+.is-navigating .fab-stack {
+  bottom: calc(70px + var(--safe-b) + 16px);
+}
+
+/* ──────────────────────────────────────────
+   22. LANDSCAPE ORIENTATION
+────────────────────────────────────────── */
+@media (orientation: landscape) {
+  /* Top bar: side-notch safe areas */
+  .top-bar {
+    padding-left:  max(16px, calc(var(--safe-l) + 12px));
+    padding-right: max(16px, calc(var(--safe-r) + 12px));
+  }
+
+  /* Nav HUD: pulls tighter to top, respects notch */
+  .nav-hud {
+    left:    max(16px, calc(var(--safe-l) + 12px));
+    right:   max(16px, calc(var(--safe-r) + 12px));
+    top:     calc(var(--safe-t) + 10px);
+    padding: 12px 14px;
+  }
+
+  /* Stats bar: compact height, notch-safe */
+  .nav-stats-bar {
+    left:   max(16px, calc(var(--safe-l) + 12px));
+    right:  max(16px, calc(var(--safe-r) + 12px));
+    bottom: max(12px, calc(var(--safe-b) + 10px));
+    height: 58px;
+  }
+  .nav-stat-value { font-size: 19px; }
+  .nav-stat-sep   { margin: 10px 0; }
+
+  /* Lifted elements: adapted for landscape stats bar height (58px) */
+  .is-navigating .speed-display {
+    bottom: calc(58px + max(12px, var(--safe-b)) + 16px);
+    left:   max(16px, calc(var(--safe-l) + 12px));
+  }
+  .is-navigating .fab-stack {
+    bottom: calc(58px + max(12px, var(--safe-b)) + 12px);
+  }
+
+  /* FABs: right-side notch safe */
+  .fab-stack {
+    right: max(16px, calc(var(--safe-r) + 12px));
+  }
+
+  /* Bottom nav: side insets for notch */
+  .bottom-nav {
+    padding-left:  max(8px, calc(var(--safe-l) + 6px));
+    padding-right: max(8px, calc(var(--safe-r) + 6px));
+  }
+
+  /* Route card: more room in landscape */
+  .bottom-sheet { max-height: 82vh; }
+
+  /* Search panel header side insets */
+  .search-panel-header {
+    padding-left:  max(16px, calc(var(--safe-l) + 12px));
+    padding-right: max(16px, calc(var(--safe-r) + 12px));
+  }
+
+  /* Side panels */
+  .side-panel { max-height: 60vh; }
+}
+
+/* Extra-compact: small phones in landscape (iPhone SE etc.) */
+@media (orientation: landscape) and (max-height: 430px) {
+  .nav-hud {
+    top:     calc(var(--safe-t) + 4px);
+    padding: 10px 12px;
+  }
+  .hud-turn-icon {
+    width:     42px;
+    height:    42px;
+    font-size: 22px;
+  }
+  .hud-turn-dist   { font-size: 16px; }
+  .hud-turn-street { font-size: 12px; }
+
+  .nav-stats-bar {
+    height:        50px;
+    border-radius: var(--r-lg);
+  }
+  .nav-stat-value { font-size: 17px; }
+  .nav-stat-label { font-size: 9px; letter-spacing: 0.4px; }
+  .nav-stat-sep   { margin: 8px 0; }
+
+  .is-navigating .speed-display {
+    bottom: calc(50px + max(10px, var(--safe-b)) + 12px);
+    width:  56px;
+    height: 56px;
+  }
+  .speed-num { font-size: 19px; }
+
+  .bottom-sheet { max-height: 90vh; }
+}

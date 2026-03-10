@@ -188,8 +188,8 @@
             <div class="route-meta">
               <span class="route-time-badge" id="routeTime">—</span>
               <span class="route-dot">·</span>
-              <span class="route-dist-badge" id="routeDist">—</span>
-            </div>
+              <span class="route-dist-badge" id="routeDist">—</span>              <span class="route-dot" id="trafficSep" style="display:none">·</span>
+              <span class="traffic-badge" id="trafficBadge" style="display:none"></span>            </div>
           </div>
         </div>
         <div class="route-actions">
@@ -234,6 +234,24 @@
     <div class="speed-display" id="speedDisplay">
       <div class="speed-num" id="speedNum">0</div>
       <div class="speed-unit">km/h</div>
+    </div>
+
+    <!-- ─────── NAVIGATION STATS BAR ─────── -->
+    <div class="nav-stats-bar" id="navStatsBar" role="group" aria-label="Navigation progress">
+      <div class="nav-stat">
+        <div class="nav-stat-value" id="navStatMinutes">—</div>
+        <div class="nav-stat-label">min</div>
+      </div>
+      <div class="nav-stat-sep"></div>
+      <div class="nav-stat">
+        <div class="nav-stat-value" id="navStatETA">—:—</div>
+        <div class="nav-stat-label">ETA</div>
+      </div>
+      <div class="nav-stat-sep"></div>
+      <div class="nav-stat">
+        <div class="nav-stat-value" id="navStatDist">—</div>
+        <div class="nav-stat-label" id="navStatDistUnit">away</div>
+      </div>
     </div>
 
     <!-- ─────── SIDE PANELS ─────── -->

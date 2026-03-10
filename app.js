@@ -43,6 +43,9 @@ const State = {
   theme:          localStorage.getItem('hugo-theme')   || 'dark',
   units:          localStorage.getItem('hugo-units')   || 'km',
   activeTab:      'map',
+  totalDuration:     0,      // total route duration in seconds (for avg-speed calc)
+  totalDistance:     0,      // total route distance in metres
+  _navStatsInterval: null,   // setInterval id for ETA ticker
   recents:        JSON.parse(localStorage.getItem('hugo-recents') || '[]'),
 };
 
@@ -63,6 +66,16 @@ const Utils = {
     const h = Math.floor(s / 3600);
     const m = Math.round((s % 3600) / 60);
     return `${h}h ${m}m`;
+  },
+  // Returns { value, unit } for use in the stats bar (value and label separately)
+  fmtDistParts(m) {
+    if (State.units === 'mi') {
+      const mi = m / 1609.34;
+      if (mi < 0.5) return { value: String(Math.round(m * 3.281)), unit: 'ft away' };
+      return { value: mi.toFixed(1), unit: 'mi away' };
+    }
+    if (m < 1000) return { value: String(Math.round(m)), unit: 'm away' };
+    return { value: (m / 1000).toFixed(1), unit: 'km away' };
   },
   debounce(fn, ms) {
     let t;
@@ -125,6 +138,98 @@ const Utils = {
     if (typ === 'exit roundabout') return `Exit roundabout${road}`;
     if (typ === 'continue' || typ === 'new name') return `Continue${road || ' straight'}`;
     return `Continue${road || ''}`;
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   TRAFFIC CONTROLLER
+   Simulates live traffic segments that colour the route polyline.
+   Levels: 'clear' (blue) | 'moderate' (amber) | 'heavy' (red)
+═══════════════════════════════════════════════════════════════ */
+const Traffic = {
+  _levels:         null,
+  _updateInterval: null,
+
+  // Call once per route calculation to seed segment traffic levels.
+  generate(coordCount) {
+    const segCount = Math.min(8, Math.max(4, Math.floor(coordCount / 20)));
+    this._levels = Array.from({ length: segCount }, (_, i) => {
+      // First / last segment always clear (origin & destination areas)
+      if (i === 0 || i === segCount - 1) return 'clear';
+      const r = Math.random();
+      return r < 0.48 ? 'clear' : r < 0.76 ? 'moderate' : 'heavy';
+    });
+  },
+
+  // Randomly mutate one mid-route segment (called by live update interval).
+  _mutate() {
+    if (!this._levels?.length) return;
+    const idx = Math.floor(Math.random() * this._levels.length);
+    const r   = Math.random();
+    this._levels[idx] = r < 0.5 ? 'clear' : r < 0.78 ? 'moderate' : 'heavy';
+  },
+
+  getColor(level) {
+    return { clear: '#4F8EF7', moderate: '#F59E0B', heavy: '#EF4444' }[level] ?? '#4F8EF7';
+  },
+
+  getHaloColor(level) {
+    return {
+      clear:    'rgba(79,142,247,0.18)',
+      moderate: 'rgba(245,158,11,0.15)',
+      heavy:    'rgba(239,68,68,0.15)',
+    }[level] ?? 'rgba(79,142,247,0.18)';
+  },
+
+  // Split a latLng array into traffic-coloured segment objects.
+  getSegments(latLngs) {
+    if (!this._levels?.length) return [{ coords: latLngs, level: 'clear' }];
+    const segSize = Math.floor(latLngs.length / this._levels.length);
+    if (segSize < 2)             return [{ coords: latLngs, level: 'clear' }];
+    return this._levels.map((level, i) => {
+      const start = i * segSize;
+      const end   = i === this._levels.length - 1 ? latLngs.length : (i + 1) * segSize + 1;
+      return { coords: latLngs.slice(start, end), level };
+    }).filter(s => s.coords.length > 1);
+  },
+
+  // Returns the worst overall traffic level for the badge.
+  getDominantLevel() {
+    if (!this._levels?.length) return 'clear';
+    const counts = { clear: 0, moderate: 0, heavy: 0 };
+    this._levels.forEach(l => counts[l]++);
+    if (counts.heavy   >= 2)            return 'heavy';
+    if (counts.moderate > counts.clear) return 'moderate';
+    return 'clear';
+  },
+
+  // Sync the traffic badge in the route card.
+  _syncBadge() {
+    const level  = this.getDominantLevel();
+    const labels = { clear: 'Light Traffic', moderate: 'Moderate Traffic', heavy: 'Heavy Traffic' };
+    const sep    = document.getElementById('trafficSep');
+    const badge  = document.getElementById('trafficBadge');
+    if (sep)   sep.style.display = '';
+    if (badge) {
+      badge.textContent  = labels[level];
+      badge.className    = `traffic-badge traffic-${level}`;
+      badge.style.display = '';
+    }
+  },
+
+  // Begin live 45-second refresh cycle.
+  startUpdates() {
+    this.stopUpdates();
+    this._updateInterval = setInterval(() => {
+      if (!State.route) { this.stopUpdates(); return; }
+      this._mutate();
+      this._syncBadge();
+      Map_.redrawRoute();
+    }, 45_000);
+  },
+
+  stopUpdates() {
+    if (this._updateInterval) { clearInterval(this._updateInterval); this._updateInterval = null; }
   },
 };
 
@@ -223,46 +328,61 @@ const Map_ = {
 
   drawRoute(coords) {
     this.clearRoute();
-    // coords = [[lon,lat], ...]
-    const latLngs = coords.map(([ln, lt]) => [lt, ln]);
+    // coords = [[lon, lat], ...]
+    const latLngs  = coords.map(([ln, lt]) => [lt, ln]);
+    const segments = Traffic.getSegments(latLngs);
+    const layers   = [];
 
-    // Outer halo
-    const halo = L.polyline(latLngs, {
-      color: 'rgba(79,142,247,0.18)',
-      weight: 18,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }).addTo(State.map);
+    segments.forEach((seg, idx) => {
+      if (seg.coords.length < 2) return;
 
-    // Main route
-    const line = L.polyline(latLngs, {
-      color: '#4F8EF7',
-      weight: 6,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }).addTo(State.map);
-
-    State.routeGroup = L.layerGroup([halo, line]);
-
-    // Animate the route line drawing
-    line.on('add', () => {
-      const path = line._path;
-      if (!path) return;
-      const len = path.getTotalLength();
-      path.style.strokeDasharray  = len;
-      path.style.strokeDashoffset = len;
-      path.style.transition = 'none';
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          path.style.transition = `stroke-dashoffset 2.2s cubic-bezier(0.4,0,0.2,1)`;
-          path.style.strokeDashoffset = '0';
-        });
+      // Outer glow halo (traffic-tinted)
+      const halo = L.polyline(seg.coords, {
+        color:    Traffic.getHaloColor(seg.level),
+        weight:   20,
+        lineCap:  'round',
+        lineJoin: 'round',
+        opacity:  1,
       });
+      halo.addTo(State.map);
+
+      // Main coloured route line
+      const line = L.polyline(seg.coords, {
+        color:    Traffic.getColor(seg.level),
+        weight:   6,
+        lineCap:  'round',
+        lineJoin: 'round',
+      });
+      line.addTo(State.map);
+
+      // Staggered draw animation per segment
+      line.on('add', () => {
+        const path = line._path;
+        if (!path) return;
+        const len = path.getTotalLength();
+        path.style.strokeDasharray  = len;
+        path.style.strokeDashoffset = len;
+        path.style.transition = 'none';
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          path.style.transition      = `stroke-dashoffset ${1.4 + idx * 0.08}s cubic-bezier(0.4,0,0.2,1) ${idx * 0.12}s`;
+          path.style.strokeDashoffset = '0';
+        }));
+      });
+
+      layers.push(halo, line);
     });
 
-    // Fit bounds
-    const bounds = line.getBounds().pad(0.18);
-    State.map.fitBounds(bounds, { animate: true, duration: 1.4 });
+    State.routeGroup = L.layerGroup(layers);
+
+    // Fit map to complete route
+    const allLine = L.polyline(latLngs);
+    State.map.fitBounds(allLine.getBounds().pad(0.18), { animate: true, duration: 1.4 });
+  },
+
+  // Re-draw route in place with updated traffic colours (called by Traffic.startUpdates).
+  redrawRoute() {
+    if (!State.route) return;
+    this.drawRoute(State.route.geometry.coordinates);
   },
 
   clearRoute() {
@@ -385,9 +505,11 @@ const Router = {
       const route = data.routes[0];
       State.route = route;
       State.steps  = this._parseSteps(route.legs[0].steps);
+      Traffic.generate(route.geometry.coordinates.length);
       Map_.drawRoute(route.geometry.coordinates);
       UI.updateRouteCard(route);
       UI.renderDirections(State.steps);
+      Traffic.startUpdates();
       document.getElementById('routeError').classList.add('hidden');
     } catch (err) {
       console.error('Routing error:', err);
@@ -415,20 +537,44 @@ const Router = {
 const Nav = {
   start() {
     if (!State.route || !State.destination) return;
-    State.isNavigating = true;
-    State.stepIndex = 0;
+    State.isNavigating  = true;
+    State.stepIndex     = 0;
+    State.totalDuration = State.route.duration;
+    State.totalDistance = State.route.distance;
+    document.getElementById('app').classList.add('is-navigating');
     UI.showNavHud();
     UI.hideBottomNav();
     UI.closeRouteCard();
     const spd = document.getElementById('speedDisplay');
     if (spd) spd.classList.add('visible');
+
+    // Show stats bar with initial estimate
+    const d0 = State.userLocation
+      ? Utils.haversine(State.userLocation.lat, State.userLocation.lon,
+                        State.destination.lat,  State.destination.lon)
+      : State.totalDistance;
+    UI.showNavStats();
+    UI.updateNavStats(d0);
+
+    // Tick ETA every 30 s even when GPS is quiet
+    State._navStatsInterval = setInterval(() => {
+      if (!State.isNavigating || !State.destination || !State.userLocation) return;
+      const d = Utils.haversine(State.userLocation.lat, State.userLocation.lon,
+                                State.destination.lat,  State.destination.lon);
+      UI.updateNavStats(d);
+    }, 30_000);
+
     this._showStep(State.steps[0]);
     if (State.userLocation) Map_.flyTo(State.userLocation.lat, State.userLocation.lon, Config.navZoom);
     UI.toast('Navigation started — drive safe!', 'success');
   },
   stop() {
     State.isNavigating = false;
+    if (State._navStatsInterval) { clearInterval(State._navStatsInterval); State._navStatsInterval = null; }
+    Traffic.stopUpdates();
+    document.getElementById('app').classList.remove('is-navigating');
     UI.hideNavHud();
+    UI.hideNavStats();
     UI.showBottomNav();
     const spd = document.getElementById('speedDisplay');
     if (spd) spd.classList.remove('visible');
@@ -448,6 +594,7 @@ const Nav = {
     if (!State.destination) return;
     const d = Utils.haversine(lat, lon, State.destination.lat, State.destination.lon);
     if (d < 40) { this._arrive(); return; }
+    UI.updateNavStats(d);
     // Advance step hint based on proximity to current step waypoint
     const nextStep = State.steps[State.stepIndex + 1];
     if (nextStep && d < 100) {
@@ -457,7 +604,11 @@ const Nav = {
   },
   _arrive() {
     State.isNavigating = false;
+    if (State._navStatsInterval) { clearInterval(State._navStatsInterval); State._navStatsInterval = null; }
+    Traffic.stopUpdates();
+    document.getElementById('app').classList.remove('is-navigating');
     UI.hideNavHud();
+    UI.hideNavStats();
     UI.showBottomNav();
     const spd = document.getElementById('speedDisplay');
     if (spd) spd.classList.remove('visible');
@@ -658,6 +809,7 @@ const UI = {
     document.getElementById('routeTime').textContent = Utils.fmtTime(route.duration);
     document.getElementById('routeDist').textContent = Utils.fmtDist(route.distance);
     document.getElementById('startNavBtn').disabled = false;
+    Traffic._syncBadge();
   },
   renderDirections(steps) {
     const list = document.getElementById('directionsList');
@@ -673,6 +825,12 @@ const UI = {
   },
   dismissRoute() {
     this.closeRouteCard();
+    Traffic.stopUpdates();
+    // Reset traffic badge
+    const sep   = document.getElementById('trafficSep');
+    const badge = document.getElementById('trafficBadge');
+    if (sep)   sep.style.display   = 'none';
+    if (badge) badge.style.display = 'none';
     Map_.clearRoute();
     Map_.clearDestination();
     State.destination = null;
@@ -686,6 +844,34 @@ const UI = {
   },
   hideNavHud() {
     document.getElementById('navHud').classList.remove('visible');
+  },
+
+  // ── navigation stats bar ──────────────────────
+  showNavStats() {
+    document.getElementById('navStatsBar').classList.add('visible');
+  },
+  hideNavStats() {
+    document.getElementById('navStatsBar').classList.remove('visible');
+  },
+  updateNavStats(distM) {
+    // Use route's own average speed; fall back to ~50 km/h.
+    const avgSpeedMps  = State.totalDistance && State.totalDuration
+      ? State.totalDistance / State.totalDuration
+      : 13.89;
+    const secRemaining = Math.max(0, distM / avgSpeedMps);
+    const minRemaining = Math.round(secRemaining / 60);
+    const eta          = new Date(Date.now() + secRemaining * 1000);
+    const etaStr       = eta.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const { value: distVal, unit: distUnit } = Utils.fmtDistParts(distM);
+
+    const minsEl     = document.getElementById('navStatMinutes');
+    const etaEl      = document.getElementById('navStatETA');
+    const distEl     = document.getElementById('navStatDist');
+    const distUnitEl = document.getElementById('navStatDistUnit');
+    if (minsEl)     minsEl.textContent     = minRemaining < 1 ? '<1' : String(minRemaining);
+    if (etaEl)      etaEl.textContent      = etaStr;
+    if (distEl)     distEl.textContent     = distVal;
+    if (distUnitEl) distUnitEl.textContent = distUnit;
   },
 
   // ── bottom nav ────────────────────────────────
