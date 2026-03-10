@@ -847,6 +847,13 @@ svg    { display: block; flex-shrink: 0; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+/* Hide top bar when navigating */
+.is-navigating .top-bar {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s var(--ease);
+}
+
 .end-nav-btn {
   height: 38px;
   background: var(--c-danger);
@@ -861,26 +868,89 @@ svg    { display: block; flex-shrink: 0; }
 .end-nav-btn:hover  { transform: scale(1.05); background: #ef4444; }
 .end-nav-btn:active { transform: scale(0.95); }
 
-/* Speed display */
-.speed-display {
+/* ──────────────────────────────────────────
+   12b. NAVIGATION BOTTOM-LEFT PANEL
+   Groups: Speed ┃ Minutes ┃ ETA + End Route
+────────────────────────────────────────── */
+.nav-bottom-panel {
   position: absolute;
   left: 16px;
-  bottom: calc(var(--nav-h) + var(--safe-b) + 20px);
-  z-index: 110;
-  width: 64px; height: 64px;
+  bottom: calc(var(--safe-b) + 16px);
+  z-index: 115;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px);
+  transition: opacity 0.4s var(--ease), transform 0.45s var(--spring);
+}
+.nav-bottom-panel.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.nav-bp-stats {
+  display: flex;
+  align-items: stretch;
   background: var(--c-glass);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--c-border2);
   border-radius: var(--r-lg);
-  box-shadow: var(--sh);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none;
-  transition: opacity var(--t);
+  box-shadow: var(--sh-lg);
+  padding: 10px 0;
+  min-width: 200px;
 }
-.speed-display.visible { opacity: 1; }
-.speed-num { font-size: 22px; font-weight: 800; line-height: 1; color: var(--c-text); }
-.speed-unit { font-size: 10px; font-weight: 500; color: var(--c-text2); margin-top: 1px; }
+
+.nav-bp-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 12px;
+}
+.nav-bp-value {
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--c-text);
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+.nav-bp-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--c-text2);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.nav-bp-sep {
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--c-border2);
+  margin: 2px 0;
+}
+
+.nav-end-route-btn {
+  height: 42px;
+  width: 100%;
+  background: var(--c-danger);
+  color: white;
+  border-radius: var(--r-md);
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 16px rgba(248,113,113,0.35);
+  transition: transform var(--t), background var(--t), box-shadow var(--t);
+}
+.nav-end-route-btn:hover  { transform: scale(1.03); box-shadow: 0 6px 24px rgba(248,113,113,0.5); }
+.nav-end-route-btn:active { transform: scale(0.96); }
 
 /* ──────────────────────────────────────────
    13. BOTTOM NAVIGATION
@@ -889,12 +959,12 @@ svg    { display: block; flex-shrink: 0; }
   position: absolute; left: 0; right: 0; bottom: 0;
   z-index: 120;
   height: calc(var(--nav-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
   background: var(--c-glass);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   border-top: 1px solid var(--c-border2);
-  display: flex; align-items: flex-start; justify-content: space-around;
-  padding: 8px 0 0;
+  display: flex; align-items: center; justify-content: space-around;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.3);
   transition: transform 0.4s var(--ease);
 }
@@ -1162,63 +1232,8 @@ body {
 }
 
 /* ──────────────────────────────────────────
-   19. NAVIGATION STATS BAR
+   19. (removed — merged into nav-bottom-panel)
 ────────────────────────────────────────── */
-.nav-stats-bar {
-  position: absolute;
-  left: 16px; right: 16px;
-  bottom: calc(var(--safe-b) + 16px);
-  z-index: 110;
-  background: var(--c-glass);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--c-border2);
-  border-radius: var(--r-xl);
-  box-shadow: var(--sh-lg);
-  height: 70px;
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(24px);
-  transition: opacity 0.4s var(--ease), transform 0.45s var(--spring);
-}
-.nav-stats-bar.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.nav-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 10px 6px;
-}
-.nav-stat-value {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--c-text);
-  line-height: 1;
-  letter-spacing: -0.5px;
-  transition: color 0.3s var(--ease);
-}
-.nav-stat-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--c-text2);
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-.nav-stat-sep {
-  width: 1px;
-  flex-shrink: 0;
-  background: var(--c-border2);
-  margin: 14px 0;
-}
 
 /* ──────────────────────────────────────────
    20. TRAFFIC BADGE
@@ -1245,13 +1260,9 @@ body {
 
 /* ──────────────────────────────────────────
    21. IS-NAVIGATING STATE
-   Lifts speed display & FABs above stats bar
 ────────────────────────────────────────── */
-.is-navigating .speed-display {
-  bottom: calc(70px + var(--safe-b) + 20px);
-}
 .is-navigating .fab-stack {
-  bottom: calc(70px + var(--safe-b) + 16px);
+  bottom: calc(var(--safe-b) + 16px);
 }
 
 /* ──────────────────────────────────────────
@@ -1272,23 +1283,10 @@ body {
     padding: 12px 14px;
   }
 
-  /* Stats bar: compact height, notch-safe */
-  .nav-stats-bar {
+  /* Nav bottom panel: notch-safe */
+  .nav-bottom-panel {
     left:   max(16px, calc(var(--safe-l) + 12px));
-    right:  max(16px, calc(var(--safe-r) + 12px));
     bottom: max(12px, calc(var(--safe-b) + 10px));
-    height: 58px;
-  }
-  .nav-stat-value { font-size: 19px; }
-  .nav-stat-sep   { margin: 10px 0; }
-
-  /* Lifted elements: adapted for landscape stats bar height (58px) */
-  .is-navigating .speed-display {
-    bottom: calc(58px + max(12px, var(--safe-b)) + 16px);
-    left:   max(16px, calc(var(--safe-l) + 12px));
-  }
-  .is-navigating .fab-stack {
-    bottom: calc(58px + max(12px, var(--safe-b)) + 12px);
   }
 
   /* FABs: right-side notch safe */
@@ -1329,20 +1327,8 @@ body {
   .hud-turn-dist   { font-size: 16px; }
   .hud-turn-street { font-size: 12px; }
 
-  .nav-stats-bar {
-    height:        50px;
-    border-radius: var(--r-lg);
-  }
-  .nav-stat-value { font-size: 17px; }
-  .nav-stat-label { font-size: 9px; letter-spacing: 0.4px; }
-  .nav-stat-sep   { margin: 8px 0; }
-
-  .is-navigating .speed-display {
-    bottom: calc(50px + max(10px, var(--safe-b)) + 12px);
-    width:  56px;
-    height: 56px;
-  }
-  .speed-num { font-size: 19px; }
+  .nav-bp-value { font-size: 18px; }
+  .nav-bp-label { font-size: 8px; }
 
   .bottom-sheet { max-height: 90vh; }
 }

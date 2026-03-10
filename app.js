@@ -43,9 +43,12 @@ const State = {
   theme:          localStorage.getItem('hugo-theme')   || 'dark',
   units:          localStorage.getItem('hugo-units')   || 'km',
   activeTab:      'map',
-  totalDuration:     0,      // total route duration in seconds (for avg-speed calc)
-  totalDistance:     0,      // total route distance in metres
-  _navStatsInterval: null,   // setInterval id for ETA ticker
+  totalDuration:     0,
+  totalDistance:     0,
+  _navStatsInterval: null,
+  _rerouteInterval:  null,
+  _lastSpokenStep:  -1,
+  rawSteps:          [],   // raw OSRM steps for voice
   recents:        JSON.parse(localStorage.getItem('hugo-recents') || '[]'),
 };
 
@@ -138,6 +141,36 @@ const Utils = {
     if (typ === 'exit roundabout') return `Exit roundabout${road}`;
     if (typ === 'continue' || typ === 'new name') return `Continue${road || ' straight'}`;
     return `Continue${road || ''}`;
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   VOICE GUIDANCE
+   Uses the Web Speech API (SpeechSynthesis)
+═══════════════════════════════════════════════════════════════ */
+const Voice = {
+  _synth: window.speechSynthesis || null,
+  _enabled: true,
+
+  speak(text) {
+    if (!this._synth || !this._enabled) return;
+    this._synth.cancel();
+    const plain = text.replace(/<[^>]*>/g, '');
+    const utt = new SpeechSynthesisUtterance(plain);
+    utt.lang  = navigator.language || 'en-US';
+    utt.rate  = 1.0;
+    utt.pitch = 1.0;
+    this._synth.speak(utt);
+  },
+
+  speakStep(step) {
+    if (!step) return;
+    const plain = step.instruction.replace(/<[^>]*>/g, '');
+    this.speak(`In ${step.distance}, ${plain}`);
+  },
+
+  cancel() {
+    if (this._synth) this._synth.cancel();
   },
 };
 
@@ -430,10 +463,10 @@ const Geo = {
       Nav._trackProgress(lat, lon, speed);
     }
 
-    // Update speed display
-    const spd = speed != null ? Math.round(speed * 3.6) : 0;
+    // Update speed display (mph)
+    const spdMph = speed != null ? Math.round(speed * 2.237) : 0;
     const el = document.getElementById('speedNum');
-    if (el) el.textContent = spd;
+    if (el) el.textContent = spdMph;
   },
   _onErr(err) {
     UI.setLocBtnState('idle');
@@ -505,6 +538,7 @@ const Router = {
       const route = data.routes[0];
       State.route = route;
       State.steps  = this._parseSteps(route.legs[0].steps);
+      State.rawSteps = route.legs[0].steps;
       Traffic.generate(route.geometry.coordinates.length);
       Map_.drawRoute(route.geometry.coordinates);
       UI.updateRouteCard(route);
@@ -539,45 +573,57 @@ const Nav = {
     if (!State.route || !State.destination) return;
     State.isNavigating  = true;
     State.stepIndex     = 0;
+    State._lastSpokenStep = -1;
     State.totalDuration = State.route.duration;
     State.totalDistance = State.route.distance;
     document.getElementById('app').classList.add('is-navigating');
     UI.showNavHud();
     UI.hideBottomNav();
     UI.closeRouteCard();
-    const spd = document.getElementById('speedDisplay');
-    if (spd) spd.classList.add('visible');
+    UI.showNavPanel();
 
-    // Show stats bar with initial estimate
+    // Initial stats calculation
     const d0 = State.userLocation
       ? Utils.haversine(State.userLocation.lat, State.userLocation.lon,
                         State.destination.lat,  State.destination.lon)
       : State.totalDistance;
-    UI.showNavStats();
     UI.updateNavStats(d0);
 
-    // Tick ETA every 30 s even when GPS is quiet
+    // Tick ETA every 15 s
     State._navStatsInterval = setInterval(() => {
       if (!State.isNavigating || !State.destination || !State.userLocation) return;
       const d = Utils.haversine(State.userLocation.lat, State.userLocation.lon,
                                 State.destination.lat,  State.destination.lon);
       UI.updateNavStats(d);
-    }, 30_000);
+    }, 15_000);
+
+    // Live reroute every 60 s
+    State._rerouteInterval = setInterval(() => {
+      if (!State.isNavigating || !State.destination || !State.userLocation) return;
+      Router.calculate();
+    }, 60_000);
 
     this._showStep(State.steps[0]);
+    Voice.speak('Navigation started. Drive safe!');
+    // Speak first step after a short delay
+    setTimeout(() => {
+      if (State.steps[0]) Voice.speakStep(State.steps[0]);
+      State._lastSpokenStep = 0;
+    }, 2500);
+
     if (State.userLocation) Map_.flyTo(State.userLocation.lat, State.userLocation.lon, Config.navZoom);
     UI.toast('Navigation started — drive safe!', 'success');
   },
   stop() {
     State.isNavigating = false;
     if (State._navStatsInterval) { clearInterval(State._navStatsInterval); State._navStatsInterval = null; }
+    if (State._rerouteInterval)  { clearInterval(State._rerouteInterval);  State._rerouteInterval  = null; }
     Traffic.stopUpdates();
+    Voice.cancel();
     document.getElementById('app').classList.remove('is-navigating');
     UI.hideNavHud();
-    UI.hideNavStats();
+    UI.hideNavPanel();
     UI.showBottomNav();
-    const spd = document.getElementById('speedDisplay');
-    if (spd) spd.classList.remove('visible');
     if (State.destination) UI.openRouteCard();
     if (State.userLocation) Map_.flyTo(State.userLocation.lat, State.userLocation.lon, Config.defaultZoom);
   },
@@ -595,29 +641,50 @@ const Nav = {
     const d = Utils.haversine(lat, lon, State.destination.lat, State.destination.lon);
     if (d < 40) { this._arrive(); return; }
     UI.updateNavStats(d);
-    // Advance step hint based on proximity to current step waypoint
-    const nextStep = State.steps[State.stepIndex + 1];
-    if (nextStep && d < 100) {
-      State.stepIndex = Math.min(State.stepIndex + 1, State.steps.length - 1);
-      this._showStep(State.steps[State.stepIndex]);
+
+    // Find closest upcoming step using raw OSRM step waypoints
+    if (State.rawSteps?.length) {
+      for (let i = State.stepIndex; i < State.rawSteps.length; i++) {
+        const loc = State.rawSteps[i]?.maneuver?.location;
+        if (!loc) continue;
+        const stepDist = Utils.haversine(lat, lon, loc[1], loc[0]);
+        // Within 80 m of a step maneuver — advance
+        if (stepDist < 80 && i > State.stepIndex) {
+          State.stepIndex = i;
+          this._showStep(State.steps[i]);
+          // Voice announce new step
+          if (State._lastSpokenStep !== i) {
+            Voice.speakStep(State.steps[i]);
+            State._lastSpokenStep = i;
+          }
+          break;
+        }
+        // Approaching a step within 300 m — pre-announce
+        if (stepDist < 300 && i === State.stepIndex + 1 && State._lastSpokenStep !== i) {
+          Voice.speakStep(State.steps[i]);
+          State._lastSpokenStep = i;
+          break;
+        }
+      }
     }
   },
   _arrive() {
     State.isNavigating = false;
     if (State._navStatsInterval) { clearInterval(State._navStatsInterval); State._navStatsInterval = null; }
+    if (State._rerouteInterval)  { clearInterval(State._rerouteInterval);  State._rerouteInterval  = null; }
     Traffic.stopUpdates();
+    Voice.speak('You have arrived at your destination.');
     document.getElementById('app').classList.remove('is-navigating');
     UI.hideNavHud();
-    UI.hideNavStats();
+    UI.hideNavPanel();
     UI.showBottomNav();
-    const spd = document.getElementById('speedDisplay');
-    if (spd) spd.classList.remove('visible');
     UI.showArrival(State.destination.name);
     Map_.clearRoute();
     Map_.clearDestination();
     State.destination = null;
     State.route = null;
     State.steps = [];
+    State.rawSteps = [];
   },
 };
 
@@ -846,15 +913,14 @@ const UI = {
     document.getElementById('navHud').classList.remove('visible');
   },
 
-  // ── navigation stats bar ──────────────────────
-  showNavStats() {
-    document.getElementById('navStatsBar').classList.add('visible');
+  // ── navigation bottom panel (speed / min / ETA + End Route) ──
+  showNavPanel() {
+    document.getElementById('navBottomPanel').classList.add('visible');
   },
-  hideNavStats() {
-    document.getElementById('navStatsBar').classList.remove('visible');
+  hideNavPanel() {
+    document.getElementById('navBottomPanel').classList.remove('visible');
   },
   updateNavStats(distM) {
-    // Use route's own average speed; fall back to ~50 km/h.
     const avgSpeedMps  = State.totalDistance && State.totalDuration
       ? State.totalDistance / State.totalDuration
       : 13.89;
@@ -862,16 +928,11 @@ const UI = {
     const minRemaining = Math.round(secRemaining / 60);
     const eta          = new Date(Date.now() + secRemaining * 1000);
     const etaStr       = eta.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const { value: distVal, unit: distUnit } = Utils.fmtDistParts(distM);
 
-    const minsEl     = document.getElementById('navStatMinutes');
-    const etaEl      = document.getElementById('navStatETA');
-    const distEl     = document.getElementById('navStatDist');
-    const distUnitEl = document.getElementById('navStatDistUnit');
-    if (minsEl)     minsEl.textContent     = minRemaining < 1 ? '<1' : String(minRemaining);
-    if (etaEl)      etaEl.textContent      = etaStr;
-    if (distEl)     distEl.textContent     = distVal;
-    if (distUnitEl) distUnitEl.textContent = distUnit;
+    const minsEl = document.getElementById('navStatMinutes');
+    const etaEl  = document.getElementById('navStatETA');
+    if (minsEl) minsEl.textContent = minRemaining < 1 ? '<1' : String(minRemaining);
+    if (etaEl)  etaEl.textContent  = etaStr;
   },
 
   // ── bottom nav ────────────────────────────────

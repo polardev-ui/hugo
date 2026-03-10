@@ -216,7 +216,7 @@
       </div>
     </div>
 
-    <!-- ─────── NAVIGATION HUD ─────── -->
+    <!-- ─────── NAVIGATION HUD (turn-by-turn) ─────── -->
     <div class="nav-hud" id="navHud" role="status" aria-live="polite">
       <div class="hud-turn">
         <div class="hud-turn-icon" id="navTurnIcon" aria-hidden="true">↑</div>
@@ -225,33 +225,29 @@
           <div class="hud-turn-street" id="navTurnStreet">Please wait</div>
         </div>
       </div>
-      <button class="end-nav-btn ripple-btn" id="stopNavBtn" aria-label="End navigation">
-        End
+    </div>
+
+    <!-- ─────── NAVIGATION BOTTOM-LEFT PANEL ─────── -->
+    <div class="nav-bottom-panel" id="navBottomPanel">
+      <div class="nav-bp-stats">
+        <div class="nav-bp-stat nav-bp-speed">
+          <div class="nav-bp-value" id="speedNum">0</div>
+          <div class="nav-bp-label" id="speedUnitLabel">mph</div>
+        </div>
+        <div class="nav-bp-sep"></div>
+        <div class="nav-bp-stat">
+          <div class="nav-bp-value" id="navStatMinutes">—</div>
+          <div class="nav-bp-label">min</div>
+        </div>
+        <div class="nav-bp-sep"></div>
+        <div class="nav-bp-stat">
+          <div class="nav-bp-value" id="navStatETA">—:—</div>
+          <div class="nav-bp-label">ETA</div>
+        </div>
+      </div>
+      <button class="nav-end-route-btn ripple-btn" id="stopNavBtn" aria-label="End navigation">
+        End Route
       </button>
-    </div>
-
-    <!-- Speed display during navigation -->
-    <div class="speed-display" id="speedDisplay">
-      <div class="speed-num" id="speedNum">0</div>
-      <div class="speed-unit">km/h</div>
-    </div>
-
-    <!-- ─────── NAVIGATION STATS BAR ─────── -->
-    <div class="nav-stats-bar" id="navStatsBar" role="group" aria-label="Navigation progress">
-      <div class="nav-stat">
-        <div class="nav-stat-value" id="navStatMinutes">—</div>
-        <div class="nav-stat-label">min</div>
-      </div>
-      <div class="nav-stat-sep"></div>
-      <div class="nav-stat">
-        <div class="nav-stat-value" id="navStatETA">—:—</div>
-        <div class="nav-stat-label">ETA</div>
-      </div>
-      <div class="nav-stat-sep"></div>
-      <div class="nav-stat">
-        <div class="nav-stat-value" id="navStatDist">—</div>
-        <div class="nav-stat-label" id="navStatDistUnit">away</div>
-      </div>
     </div>
 
     <!-- ─────── SIDE PANELS ─────── -->
